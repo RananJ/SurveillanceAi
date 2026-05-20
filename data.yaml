@@ -1,0 +1,17 @@
+train: dataset/images/train
+val: dataset/images/val
+test: dataset/images/test # optional
+
+nc: 10 # total number of classes
+
+names:
+  0: Hardhat
+  1: Mask
+  2: NO-Hardhat
+  4: NO-Mask
+  5: NO-Safety Vest
+  6: Person
+  7: Safety Cone
+  8: Safety Vest
+  9: Machinery
+  10: Vehicle

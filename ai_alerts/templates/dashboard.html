@@ -1,0 +1,49 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Construction Violation Review</title>
+    <link rel="stylesheet" href="{% static 'css/styles.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <h1>🚧 Construction Violation Review</h1>
+    </header>
+
+    <main class="review-layout">
+        <div id="alert-feed" class="alert-list-panel">
+            <h2>Recent Alerts</h2>
+            <div id="alerts-container">
+                <p class="placeholder">Loading alerts...</p>
+            </div>
+        </div>
+
+        <div id="detail-view" class="detail-panel">
+            <div id="detail-placeholder" class="placeholder">
+                <p>Select an alert from the list to view its details.</p>
+            </div>
+
+            <div id="detail-content" class="hidden">
+                <video id="video-player" controls>
+                    Your browser does not support the video tag.
+                </video>
+                
+                <h3>Alert Details</h3>
+                <div class="info-grid">
+                    <p><strong>Timestamp:</strong> <span id="detail-timestamp"></span></p>
+                    <p><strong>Camera:</strong> <span id="detail-camera"></span></p>
+                    <p><strong>Violations:</strong> <span id="detail-violations"></span></p>
+                </div>
+                
+                <h3>Event Summary</h3>
+                <p id="detail-summary"></p>
+            </div>
+        </div>
+    </main>
+
+    <script src="{% static 'js/scripts.js' %}"></script>
+</body>
+</html>
