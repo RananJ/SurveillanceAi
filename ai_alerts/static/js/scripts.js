@@ -18,30 +18,14 @@ document.addEventListener("DOMContentLoaded", function () {
 
   async function loadData() {
     try {
-      const [alertsResponse, transcriptsResponse] = await Promise.all([
-        fetch(ALERTS_API_URL),
-        fetch(TRANSCRIPTS_API_URL),
-      ]);
-
+      const alertsResponse = await fetch(ALERTS_API_URL);
       const alerts = await alertsResponse.json();
-      const transcripts = await transcriptsResponse.json();
-
-      const transcriptsByAlertId = new Map(
-        transcripts.map((t) => [t.alert, t])
-      );
-
-      const combinedData = alerts.map((alert) => ({
-        ...alert,
-        summary:
-          transcriptsByAlertId.get(alert.id)?.summary ||
-          "No summary available.",
-      }));
 
       // --- DEBUGGING LINE 1 ---
-      // Let's see if the data was combined correctly.
-      console.log("Combined data loaded:", combinedData);
+      // Let's see if the alerts loaded correctly with nested summaries.
+      console.log("Alerts data loaded:", alerts);
 
-      populateAlertFeed(combinedData);
+      populateAlertFeed(alerts);
     } catch (error) {
       console.error("Failed to load data:", error);
       alertsContainer.innerHTML =

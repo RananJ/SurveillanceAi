@@ -6,25 +6,44 @@ from transformers import AutoProcessor, AutoModelForCausalLM
 from .models import Transcript
 from PIL import Image
 
-# --- Load VLM for frame captions with Error Handling ---
-try:
-    print("[Transcript] Loading VLM model 'microsoft/git-base-vatex'...")
-    caption_model_name = "microsoft/git-base-vatex"
-    processor = AutoProcessor.from_pretrained(caption_model_name)
-    caption_model = AutoModelForCausalLM.from_pretrained(
-        caption_model_name
-    ).to("cuda" if torch.cuda.is_available() else "cpu")
-    print("[Transcript] VLM model loaded successfully.")
-except Exception as e:
-    print(f"[Transcript] FATAL ERROR: Could not load the VLM model. Transcripts will fail.")
-    print(f"[Transcript] Details: {e}\n{traceback.format_exc()}")
-    processor = None
-    caption_model = None
+# Global variables for caching loaded models
+_processor = None
+_caption_model = None
+_model_failed = False
+
+
+def load_vlm():
+    """
+    Lazily load the VLM processor and model.
+    Only runs when generate_transcript is called.
+    """
+    global _processor, _caption_model, _model_failed
+    if _model_failed:
+        return None, None
+
+    if _processor is None or _caption_model is None:
+        try:
+            print("[Transcript] Lazily loading VLM model 'microsoft/git-base-vatex'...")
+            caption_model_name = "microsoft/git-base-vatex"
+            _processor = AutoProcessor.from_pretrained(caption_model_name)
+            _caption_model = AutoModelForCausalLM.from_pretrained(
+                caption_model_name
+            ).to("cuda" if torch.cuda.is_available() else "cpu")
+            print("[Transcript] VLM model loaded successfully.")
+        except Exception as e:
+            print(f"[Transcript] FATAL ERROR: Could not load the VLM model. Transcripts will fail.")
+            print(f"[Transcript] Details: {e}\n{traceback.format_exc()}")
+            _processor = None
+            _caption_model = None
+            _model_failed = True
+
+    return _processor, _caption_model
 
 
 def generate_transcript(alert, video_path):
     print(f"[Transcript] Processing video: {video_path}")
 
+    processor, caption_model = load_vlm()
     if caption_model is None:
         print("[Transcript] Cannot generate transcript, VLM model failed to load.")
         Transcript.objects.create(
