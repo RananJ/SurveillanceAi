@@ -75,6 +75,7 @@ desktop.ini
 # YOLO / PyTorch / training artifacts
 dataset/
 *.pt
+!**/models/best.pt
 *.onnx
 *.engine
 
@@ -89,9 +90,5 @@ dataset/
 **/violations/
 **/snapshots/
 
-# Whitelist yolov11_custom2 under runs
-runs/*
-!runs/detect/
-runs/detect/*
-!runs/detect/yolov11_custom2/
-!runs/detect/yolov11_custom2/**
+# Ignore runs folder
+runs/

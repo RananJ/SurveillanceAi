@@ -61,7 +61,7 @@ def run():
     django.setup()
 
     # --- YOLO model setup (Relative lookup with absolute fallback) ---
-    custom_model_rel = os.path.join(project_root, "runs", "detect", "yolov11_custom2", "weights", "best.pt")
+    custom_model_rel = os.path.join(project_root, "ai_alerts", "models", "best.pt")
     if os.path.exists(custom_model_rel):
         MODEL_PATH = custom_model_rel
     else:
