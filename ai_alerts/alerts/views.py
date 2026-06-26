@@ -2,7 +2,6 @@
 
 from django.shortcuts import render
 from rest_framework import viewsets
-from rest_framework.views import APIView
 from .serializers import AlertSerializer, TranscriptSerializer
 from .models import Alert, Transcript
 import logging
@@ -26,29 +25,7 @@ class AlertViewSet(viewsets.ModelViewSet):
         serializer.save()
         logger.info(f"[API] Alert created via ViewSet: {serializer.instance}")
 
-# --- Legacy/Proxy View ---
-
-
-class CreateAlertView(APIView):
-    """
-    This view now acts as a "proxy" or "alias" to the AlertViewSet.
-    Any requests to its URL will be safely forwarded, ensuring nothing breaks.
-    """
-
-    def post(self, request, *args, **kwargs):
-        # This line forwards the request to the 'create' action of the AlertViewSet
-        create_action = AlertViewSet.as_view({'post': 'create'})
-        logger.warning(
-            f"[API] Request received on legacy CreateAlertView endpoint. Forwarding to AlertViewSet.")
-        return create_action(request, *args, **kwargs)
-
-# --- UI Views (Unchanged) ---
-
-
-def alerts_ui(request):
-    """Renders a UI page to show the latest alerts."""
-    alerts = Alert.objects.order_by('-timestamp')[:50]
-    return render(request, "alerts_ui.html", {"alerts": alerts})
+# --- UI Views ---
 
 
 def dashboard(request):

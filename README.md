@@ -34,7 +34,7 @@ flowchart TD
     VLM -->|Generate Summary| TranscriptModel[Transcript DB Model]
     VideoFile -->|Create Alert Entry| AlertModel[Alert DB Model]
     
-    AlertModel & TranscriptModel -->|Django REST API| WebDashboard[React/Django Web Dashboard]
+    AlertModel & TranscriptModel -->|Django REST API| WebDashboard[Vanilla HTML/JS Dashboard]
 ```
 
 ---

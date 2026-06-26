@@ -41,6 +41,13 @@ def save_alert_and_process(all_frames, fps, frame_size, video_dir, detected_viol
     print(f"[THREAD] Alert saved to database: {filename}")
     generate_transcript(alert, alert.video.path)
 
+    # 3. Clean up the temporary file written by OpenCV to avoid duplication
+    try:
+        os.remove(filepath)
+        print(f"[THREAD] Cleaned up temporary file: {filepath}")
+    except Exception as e:
+        print(f"[THREAD] Could not remove temporary file {filepath}: {e}")
+
 
 def run():
     # --- Django setup ---

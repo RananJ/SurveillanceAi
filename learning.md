@@ -160,6 +160,25 @@ The following architectural, code quality, and performance limitations have been
 * **File**: `alerts/scripts/cam.py`
 * **Status**: Resolved. Replaced hardcoded machine-specific absolute directories with dynamic directory resolution (using the script's `__file__` location to compute `project_root` and `django_root`). It looks for local assets first and falls back to absolute local paths only if local copies are missing.
 
+### 🧹 6. Redundancy Cleanups & Code Optimization
+* **Files/Folders modified or deleted**:
+  * Deleted duplicate weights [ai_alerts/models/yolo11n.pt](file:///c:/Users/r125v/SurveillanceAi/ai_alerts/models/yolo11n.pt) and [ai_alerts/models/yolo11s.pt](file:///c:/Users/r125v/SurveillanceAi/ai_alerts/models/yolo11s.pt) (retaining the main files at project root).
+  * Deleted prototype script [ai_alerts/models/cam.py](file:///c:/Users/r125v/SurveillanceAi/ai_alerts/models/cam.py) and empty file stub [ai_alerts/alerts/scripts.py](file:///c:/Users/r125v/SurveillanceAi/ai_alerts/alerts/scripts.py).
+  * Deleted duplicate media folder `ai_alerts/alerts/violations/` and accidental nested directory `ai_alerts/alerts/ai_alerts/`.
+  * Cleaned up [views.py](file:///c:/Users/r125v/SurveillanceAi/ai_alerts/alerts/views.py) (removed `CreateAlertView` proxy and `alerts_ui` render view) and [urls.py](file:///c:/Users/r125v/SurveillanceAi/ai_alerts/alerts/urls.py) (removed `/create/` and `/ui/` routes).
+  * Updated [cam.py](file:///c:/Users/r125v/SurveillanceAi/ai_alerts/alerts/scripts/cam.py) camera pipeline runner to delete its temporary video clip once Django ORM copies it into `MEDIA_ROOT`.
+* **Status**: Resolved.
+  * **Cause**: 
+    1. Base YOLO weights were downloaded both in root and app subfolders.
+    2. Early prototype scripts and empty files were left over as development progressed.
+    3. The camera thread wrote video recordings locally, which Django's `FileField` duplicated into `MEDIA_ROOT`, leaving orphaned files in `alerts/violations/`.
+    4. Accidental folders were created due to relative path lookup bugs in early testing.
+    5. Dead HTML template references (`alerts_ui.html`) and legacy proxy routes (`CreateAlertView`) remained in views and URLs after switching entirely to the `AlertViewSet` and modern SPA layout.
+  * **Resolution**:
+    1. Safely purged all files that were not referenced by any running code.
+    2. Modified the background thread in `cam.py` to run an OS deletion command on the temporary OpenCV output file after database upload.
+    3. Consolidated the routing system and controllers to only declare and expose active REST API routes.
+
 ---
 
 ## 💬 Guideline for Prompting Chatbots using this File
