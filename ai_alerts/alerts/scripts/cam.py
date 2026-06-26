@@ -44,17 +44,33 @@ def save_alert_and_process(all_frames, fps, frame_size, video_dir, detected_viol
 
 def run():
     # --- Django setup ---
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    VIDEO_DIR = os.path.join(BASE_DIR, "violations")
+    current_script_dir = os.path.dirname(os.path.abspath(__file__))
+    alerts_dir = os.path.dirname(current_script_dir)  # alerts directory
+    django_root = os.path.dirname(alerts_dir)  # ai_alerts directory
+    project_root = os.path.dirname(django_root)  # SurveillanceAi directory
+
+    VIDEO_DIR = os.path.join(alerts_dir, "violations")
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "alertsite.settings")
     django.setup()
 
-    # --- YOLO model setup ---
-    MODEL_PATH = r"C:\Users\r125v\SurveillanceAi\runs\detect\yolov11_custom2\weights\best.pt"
+    # --- YOLO model setup (Relative lookup with absolute fallback) ---
+    custom_model_rel = os.path.join(project_root, "runs", "detect", "yolov11_custom2", "weights", "best.pt")
+    if os.path.exists(custom_model_rel):
+        MODEL_PATH = custom_model_rel
+    else:
+        MODEL_PATH = r"C:\Users\r125v\SurveillanceAi\runs\detect\yolov11_custom2\weights\best.pt"
+
+    print(f"[RUNSCRIPT] Loading YOLO model from: {MODEL_PATH}")
     model = YOLO(MODEL_PATH)
 
-    # --- Video capture ---
-    video_source = r"C:\Users\r125v\Downloads\constructiondemo.mp4"
+    # --- Video capture (Check existence or use local fallback) ---
+    absolute_fallback_video = r"C:\Users\r125v\Downloads\constructiondemo.mp4"
+    if os.path.exists(absolute_fallback_video):
+        video_source = absolute_fallback_video
+    else:
+        video_source = os.path.join(project_root, "constructiondemo.mp4")
+
+    print(f"[RUNSCRIPT] Opening video source: {video_source}")
     cap = cv2.VideoCapture(video_source)
     fps = cap.get(cv2.CAP_PROP_FPS) or 24.0
 
