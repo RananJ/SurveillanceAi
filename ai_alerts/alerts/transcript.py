@@ -1,3 +1,8 @@
+import os
+# Force Hugging Face cache to the user's home folder to avoid permission errors on system folders
+home_dir = os.path.expanduser("~")
+os.environ["HF_HOME"] = os.path.join(home_dir, ".cache", "huggingface")
+
 from .models import Transcript
 import cv2
 import torch

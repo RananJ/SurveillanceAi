@@ -90,63 +90,79 @@ def run():
 
     print("[RUNSCRIPT] run() started. Press 'q' to quit.")
 
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
+    try:
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
 
-        frame_buffer.append(frame.copy())
+            frame_buffer.append(frame.copy())
 
-        # If currently capturing post-violation frames
-        if recording_frames_remaining > 0:
-            recording_buffer.append(frame.copy())
-            recording_frames_remaining -= 1
-            if recording_frames_remaining == 0:
-                # Finished capturing frames; start background thread to write/save/transcribe
-                frame_size = (frame.shape[1], frame.shape[0])
-                save_thread = threading.Thread(
-                    target=save_alert_and_process,
-                    args=(
-                        recording_buffer, fps, frame_size, VIDEO_DIR, recording_violations
+            # If currently capturing post-violation frames
+            if recording_frames_remaining > 0:
+                recording_buffer.append(frame.copy())
+                recording_frames_remaining -= 1
+                
+                # Print buffering progress to guide the user
+                if recording_frames_remaining % 15 == 0 or recording_frames_remaining == 0:
+                    print(f"[RECORDING] Capturing safety violation: {recording_frames_remaining} frames remaining in buffer...")
+                    
+                if recording_frames_remaining == 0:
+                    # Finished capturing frames; start background thread to write/save/transcribe
+                    frame_size = (frame.shape[1], frame.shape[0])
+                    save_thread = threading.Thread(
+                        target=save_alert_and_process,
+                        args=(
+                            recording_buffer, fps, frame_size, VIDEO_DIR, recording_violations
+                        )
                     )
-                )
-                save_thread.daemon = True
-                save_thread.start()
-                recording_buffer = None
-                recording_violations = None
+                    save_thread.daemon = True
+                    save_thread.start()
+                    recording_buffer = None
+                    recording_violations = None
 
-        results = model(frame)
-        detected_violations = set()
+            results = model(frame)
+            detected_violations = set()
 
-        for box in results[0].boxes:
-            cls_id = int(box.cls[0])
-            label = model.names[cls_id]
-            if label in ["NO-Hardhat", "NO-Safety Vest", "NO-Mask"]:
-                detected_violations.add(label)
+            for box in results[0].boxes:
+                cls_id = int(box.cls[0])
+                label = model.names[cls_id]
+                if label in ["NO-Hardhat", "NO-Safety Vest", "NO-Mask"]:
+                    detected_violations.add(label)
 
-        is_recording = (recording_frames_remaining > 0)
+            is_recording = (recording_frames_remaining > 0)
 
-        if detected_violations and not is_recording:
-            now = time.time()
-            if now - last_alert_time > cooldown:
-                last_alert_time = now
-                print(
-                    f"[ALERT] Violations detected. Buffering post-violation frames in main loop...")
+            if detected_violations and not is_recording:
+                now = time.time()
+                if now - last_alert_time > cooldown:
+                    last_alert_time = now
+                    print(
+                        f"[ALERT] Violations detected. Buffering post-violation frames in main loop...")
 
-                # Initialize recording buffer with pre-roll frames
-                recording_buffer = list(frame_buffer)
-                recording_frames_remaining = int(fps * 8)
-                recording_violations = detected_violations
+                    # Initialize recording buffer with pre-roll frames
+                    recording_buffer = list(frame_buffer)
+                    recording_frames_remaining = int(fps * 8)
+                    recording_violations = detected_violations
 
-        # This live preview will now run smoothly without any pausing
-        annotated_frame = results[0].plot()
-        cv2.imshow("YOLOv11 Detection", annotated_frame)
+            # This live preview will now run smoothly without any pausing
+            annotated_frame = results[0].plot()
+            cv2.imshow("YOLOv11 Detection", annotated_frame)
 
-        if cv2.waitKey(1) & 0xFF == ord("q"):
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+    except KeyboardInterrupt:
+        print("[RUNSCRIPT] KeyboardInterrupt received. Exiting...")
+    finally:
+        # Check if there is an unfinished recording in progress
+        if recording_buffer is not None and len(recording_buffer) > 0:
+            print(f"[SHUTDOWN] Finalizing active recording of {len(recording_buffer)} frames before exit...")
+            frame_size = (recording_buffer[0].shape[1], recording_buffer[0].shape[0])
+            # Call synchronously so the script does not terminate before saving is complete
+            save_alert_and_process(recording_buffer, fps, frame_size, VIDEO_DIR, recording_violations)
+            
+        print("[RUNSCRIPT] Releasing camera resources...")
+        cap.release()
+        cv2.destroyAllWindows()
 
 
 if __name__ == "__main__":
