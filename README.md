@@ -26,8 +26,9 @@ flowchart TD
     ViolationCheck -->|Yes: Cooldown Check| ThreadTrigger[Spawn Background Thread]
     
     ThreadTrigger -->|Process Asynchronously| AsyncWorker[Async Video Writer Thread]
-    AsyncWorker -->|Read Post-roll - 8s| AsyncWorker
-    FrameBuffer -->|Extract Pre-roll - 2s| AsyncWorker
+    FrameBuffer -->|2s Pre-roll| AsyncWorker
+    MainLoop -->|8s Post-roll| AsyncWorker
+    
     AsyncWorker -->|Stitch & Save H.264| VideoFile["violations/violation_timestamp.mp4"]
     
     VideoFile -->|Read Video Frames| VLM["VLM: SmolVLM2-500M-Instruct"]
