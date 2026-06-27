@@ -60,22 +60,15 @@ def run():
     os.environ.setdefault("DJANGO_SETTINGS_MODULE", "alertsite.settings")
     django.setup()
 
-    # --- YOLO model setup (Relative lookup with absolute fallback) ---
-    custom_model_rel = os.path.join(project_root, "ai_alerts", "models", "best.pt")
-    if os.path.exists(custom_model_rel):
-        MODEL_PATH = custom_model_rel
-    else:
-        MODEL_PATH = r"C:\Users\r125v\SurveillanceAi\runs\detect\yolov11_custom2\weights\best.pt"
+    # --- YOLO model setup (Relative lookup only to avoid absolute path exposure) ---
+    MODEL_PATH = os.path.join(project_root, "ai_alerts", "models", "best.pt")
 
     print(f"[RUNSCRIPT] Loading YOLO model from: {MODEL_PATH}")
     model = YOLO(MODEL_PATH)
 
     # --- Video capture (Check existence or use local fallback) ---
-    absolute_fallback_video = r"C:\Users\r125v\Downloads\constructiondemo.mp4"
-    if os.path.exists(absolute_fallback_video):
-        video_source = absolute_fallback_video
-    else:
-        video_source = os.path.join(project_root, "constructiondemo.mp4")
+    #video_source = os.path.join(project_root,"ai_alerts","demo_video","constructiondemo.mp4")
+    video_source=0
 
     print(f"[RUNSCRIPT] Opening video source: {video_source}")
     cap = cv2.VideoCapture(video_source)

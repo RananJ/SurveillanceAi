@@ -16,8 +16,8 @@ def load_vlm():
 
     if _processor is None or _caption_model is None:
         try:
-            # Swap to the 500M video-native model sitting in your cache
-            caption_model_name = "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
+            # Swap to the 500M model sitting in your cache
+            caption_model_name = "HuggingFaceTB/SmolVLM2-500M-Instruct"
             print(f"[Transcript] Lazily loading modern video VLM '{caption_model_name}'...")
             
             _processor = AutoProcessor.from_pretrained(caption_model_name)
@@ -79,8 +79,8 @@ def generate_transcript(alert, video_path):
             {
                 "role": "user",
                 "content": [
-                    # Give it the array of frames representing the sequential video stream
-                    {"type": "video", "video": frames}, 
+                    # Include the video placeholder token
+                    {"type": "video"}, 
                     {"type": "text", "text": "Describe what happens in this surveillance clip chronologically. Focus heavily on any accidents, safety violations, or unusual events."}
                 ]
             }
@@ -89,8 +89,8 @@ def generate_transcript(alert, video_path):
         # Use the chat template to format the prompt cleanly
         prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
         
-        # SINGLE forward pass for the entire timeline
-        inputs = processor(text=prompt, images=frames, return_tensors="pt").to(caption_model.device)
+        # SINGLE forward pass for the entire timeline, passing the frames as videos=[[frames]]
+        inputs = processor(text=prompt, videos=[[frames]], return_tensors="pt").to(caption_model.device)
         
         with torch.no_grad():
             output_ids = caption_model.generate(**inputs, max_new_tokens=100)
