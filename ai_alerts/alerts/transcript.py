@@ -12,6 +12,10 @@ from PIL import Image
 
 import threading
 
+# Configuration: Number of frames to sample from the clip for VLM analysis.
+# 10-12 frames is a sweet spot for balance between temporal detail and speed on CPU.
+NUM_SAMPLES = 10
+
 _processor = None
 _caption_model = None
 _model_failed = False
@@ -79,8 +83,8 @@ def generate_transcript(alert, video_path_or_frames):
             Transcript.objects.create(alert=alert, summary="No frames available in video.")
             return
 
-        # Sample 8 frames instead of 16 for 2x faster inference on CPU
-        num_samples = min(8, frame_count)
+        # Sample frames for inference
+        num_samples = min(NUM_SAMPLES, frame_count)
         for i in range(num_samples):
             frame_index = i * frame_count // num_samples
             frame = raw_frames[frame_index]
@@ -98,8 +102,8 @@ def generate_transcript(alert, video_path_or_frames):
             Transcript.objects.create(alert=alert, summary="No frames available in video.")
             return
 
-        # Sample 8 frames instead of 16 for 2x faster inference on CPU
-        num_samples = min(8, frame_count)
+        # Sample frames for inference
+        num_samples = min(NUM_SAMPLES, frame_count)
         for i in range(num_samples):
             frame_index = i * frame_count // num_samples
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
@@ -143,7 +147,13 @@ def generate_transcript(alert, video_path_or_frames):
         inputs = processor(text=prompt, videos=[[frames]], return_tensors="pt").to(caption_model.device)
         
         with torch.no_grad():
-            output_ids = caption_model.generate(**inputs, max_new_tokens=100)
+            output_ids = caption_model.generate(
+                **inputs,
+                max_new_tokens=100,
+                do_sample=False,
+                repetition_penalty=1.2,
+                no_repeat_ngram_size=3
+            )
         
         # Trim out the user prompt from the answer string
         generated_text = processor.decode(output_ids[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True).strip()
