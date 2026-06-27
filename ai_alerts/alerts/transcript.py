@@ -1,40 +1,36 @@
-from collections import Counter
+from .models import Transcript
 import cv2
 import torch
-import traceback  # Import for detailed error logging
-from transformers import AutoProcessor, AutoModelForCausalLM
-from .models import Transcript
+import traceback
+from transformers import AutoProcessor, AutoModelForMultimodalLM
 from PIL import Image
 
-# Global variables for caching loaded models
 _processor = None
 _caption_model = None
 _model_failed = False
 
-
 def load_vlm():
-    """
-    Lazily load the VLM processor and model.
-    Only runs when generate_transcript is called.
-    """
     global _processor, _caption_model, _model_failed
     if _model_failed:
         return None, None
 
     if _processor is None or _caption_model is None:
         try:
-            print("[Transcript] Lazily loading VLM model 'microsoft/git-base-vatex'...")
-            caption_model_name = "microsoft/git-base-vatex"
+            # Swap to the 500M model sitting in your cache
+            caption_model_name = "HuggingFaceTB/SmolVLM2-500M-Instruct"
+            print(f"[Transcript] Lazily loading modern video VLM '{caption_model_name}'...")
+            
             _processor = AutoProcessor.from_pretrained(caption_model_name)
-            _caption_model = AutoModelForCausalLM.from_pretrained(
-                caption_model_name
+            _caption_model = AutoModelForMultimodalLM.from_pretrained(
+                caption_model_name,
+                torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
             ).to("cuda" if torch.cuda.is_available() else "cpu")
-            print("[Transcript] VLM model loaded successfully.")
+            
+            print("[Transcript] Video VLM model loaded successfully.")
         except Exception as e:
-            print(f"[Transcript] FATAL ERROR: Could not load the VLM model. Transcripts will fail.")
+            print(f"[Transcript] FATAL ERROR: Could not load the Video VLM model.")
             print(f"[Transcript] Details: {e}\n{traceback.format_exc()}")
-            _processor = None
-            _caption_model = None
+            _processor, _caption_model = None, None
             _model_failed = True
 
     return _processor, _caption_model
@@ -45,26 +41,21 @@ def generate_transcript(alert, video_path):
 
     processor, caption_model = load_vlm()
     if caption_model is None:
-        print("[Transcript] Cannot generate transcript, VLM model failed to load.")
-        Transcript.objects.create(
-            alert=alert, summary="Automated summary failed: AI model could not be loaded.")
+        Transcript.objects.create(alert=alert, summary="Automated summary failed: AI model could not be loaded.")
         return
 
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
-        print("[Transcript] Could not open video file.")
         return
 
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     if frame_count == 0:
-        Transcript.objects.create(
-            alert=alert,
-            summary="No frames available in video, unable to generate transcript."
-        )
+        Transcript.objects.create(alert=alert, summary="No frames available in video.")
         return
 
-    num_samples = min(30, frame_count)
-    descriptions = []
+    # Keep sampling down to 16-20 frames for the 500M model to optimize processing cost
+    num_samples = min(16, frame_count)
+    frames = []
 
     for i in range(num_samples):
         frame_index = i * frame_count // num_samples
@@ -72,38 +63,45 @@ def generate_transcript(alert, video_path):
         ret, frame = cap.read()
         if not ret:
             continue
-
-        try:
-            # --- This is the part that is likely failing silently ---
-            image = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-            inputs = processor(images=image, return_tensors="pt").to(
-                caption_model.device)
-            output_ids = caption_model.generate(**inputs, max_length=50)
-            caption = processor.batch_decode(
-                output_ids, skip_special_tokens=True)[0]
-            descriptions.append(caption.lower())
-        except Exception as e:
-            # --- Now it will print a detailed error if it fails ---
-            print(f"[Transcript] FATAL ERROR during frame captioning.")
-            print(f"[Transcript] Details: {e}\n{traceback.format_exc()}")
-            # We can continue to the next frame
-            continue
+        # Convert to PIL Image
+        pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+        frames.append(pil_img)
 
     cap.release()
 
-    counts = Counter(descriptions)
-    most_common = counts.most_common(3)
+    if not frames:
+        Transcript.objects.create(alert=alert, summary="Failed to extract readable frames.")
+        return
 
-    summary_parts = []
-    for text, freq in most_common:
-        summary_parts.append(f"'{text}' (observed in {freq} frames)")
+    try:
+        # Build a single structural chat prompt asking for a precise chronological description
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    # Include the video placeholder token
+                    {"type": "video"}, 
+                    {"type": "text", "text": "Describe what happens in this surveillance clip chronologically. Focus heavily on any accidents, safety violations, or unusual events."}
+                ]
+            }
+        ]
 
-    if not summary_parts:
-        summary = "A safety violation was recorded, but no clear description could be generated."
-    else:
-        summary = "Analysis of the event shows: " + \
-            ". ".join(summary_parts) + "."
+        # Use the chat template to format the prompt cleanly
+        prompt = processor.apply_chat_template(messages, add_generation_prompt=True)
+        
+        # SINGLE forward pass for the entire timeline, passing the frames as videos=[[frames]]
+        inputs = processor(text=prompt, videos=[[frames]], return_tensors="pt").to(caption_model.device)
+        
+        with torch.no_grad():
+            output_ids = caption_model.generate(**inputs, max_new_tokens=100)
+        
+        # Trim out the user prompt from the answer string
+        generated_text = processor.decode(output_ids[0][inputs["input_ids"].shape[-1]:], skip_special_tokens=True).strip()
+        summary = f"Analysis of the event shows: {generated_text}"
+
+    except Exception as e:
+        print(f"[Transcript] FATAL ERROR during native video analysis.\nDetails: {e}\n{traceback.format_exc()}")
+        summary = "A safety violation was recorded, but processing the timeline failed."
 
     Transcript.objects.create(alert=alert, summary=summary)
-    print(f"[Transcript] Summary: {summary}")
-    print(f"[Transcript] Saved transcript for Alert {alert.id}")
+    print(f"[Transcript] Saved transcript for Alert {alert.id}: {summary}")
