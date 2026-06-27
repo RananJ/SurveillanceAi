@@ -41,38 +41,71 @@ def load_vlm():
     return _processor, _caption_model
 
 
-def generate_transcript(alert, video_path):
-    print(f"[Transcript] Processing video: {video_path}")
+def preload_vlm_async():
+    """
+    Spawns a background thread to load the VLM model if it is not already loaded.
+    This runs concurrently while the video frames are being buffered.
+    """
+    import threading
+    global _processor, _caption_model, _model_failed
+    if not _model_failed and (_processor is None or _caption_model is None):
+        print("[Transcript] Preloading VLM model asynchronously in background thread...")
+        thread = threading.Thread(target=load_vlm)
+        thread.daemon = True
+        thread.start()
+
+
+def generate_transcript(alert, video_path_or_frames):
+    if isinstance(video_path_or_frames, list):
+        print(f"[Transcript] Processing {len(video_path_or_frames)} raw frames directly from memory...")
+    else:
+        print(f"[Transcript] Processing video from disk: {video_path_or_frames}")
 
     processor, caption_model = load_vlm()
     if caption_model is None:
         Transcript.objects.create(alert=alert, summary="Automated summary failed: AI model could not be loaded.")
         return
 
-    cap = cv2.VideoCapture(video_path)
-    if not cap.isOpened():
-        return
-
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    if frame_count == 0:
-        Transcript.objects.create(alert=alert, summary="No frames available in video.")
-        return
-
-    # Keep sampling down to 16-20 frames for the 500M model to optimize processing cost
-    num_samples = min(16, frame_count)
     frames = []
 
-    for i in range(num_samples):
-        frame_index = i * frame_count // num_samples
-        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
-        ret, frame = cap.read()
-        if not ret:
-            continue
-        # Convert to PIL Image
-        pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
-        frames.append(pil_img)
+    if isinstance(video_path_or_frames, list):
+        raw_frames = video_path_or_frames
+        frame_count = len(raw_frames)
+        if frame_count == 0:
+            Transcript.objects.create(alert=alert, summary="No frames available in video.")
+            return
 
-    cap.release()
+        num_samples = min(16, frame_count)
+        for i in range(num_samples):
+            frame_index = i * frame_count // num_samples
+            frame = raw_frames[frame_index]
+            # Convert to PIL Image
+            pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            frames.append(pil_img)
+    else:
+        video_path = video_path_or_frames
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return
+
+        frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        if frame_count == 0:
+            Transcript.objects.create(alert=alert, summary="No frames available in video.")
+            return
+
+        # Keep sampling down to 16-20 frames for the 500M model to optimize processing cost
+        num_samples = min(16, frame_count)
+        for i in range(num_samples):
+            frame_index = i * frame_count // num_samples
+            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
+            ret, frame = cap.read()
+            if not ret:
+                continue
+            # Convert to PIL Image
+            pil_img = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+            frames.append(pil_img)
+
+        cap.release()
 
     if not frames:
         Transcript.objects.create(alert=alert, summary="Failed to extract readable frames.")

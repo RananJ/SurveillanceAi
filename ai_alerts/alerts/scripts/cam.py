@@ -39,7 +39,7 @@ def save_alert_and_process(all_frames, fps, frame_size, video_dir, detected_viol
             video=File(f, name=filename)
         )
     print(f"[THREAD] Alert saved to database: {filename}")
-    generate_transcript(alert, alert.video.path)
+    generate_transcript(alert, all_frames)
 
     # 3. Clean up the temporary file written by OpenCV to avoid duplication
     try:
@@ -139,6 +139,10 @@ def run():
                     print(
                         f"[ALERT] Violations detected. Buffering post-violation frames in main loop...")
 
+                    # Preload the VLM in the background while capturing
+                    from alerts.transcript import preload_vlm_async
+                    preload_vlm_async()
+
                     # Initialize recording buffer with pre-roll frames
                     recording_buffer = list(frame_buffer)
                     recording_frames_remaining = int(fps * 8)
@@ -153,16 +157,16 @@ def run():
     except KeyboardInterrupt:
         print("[RUNSCRIPT] KeyboardInterrupt received. Exiting...")
     finally:
-        # Check if there is an unfinished recording in progress
-        if recording_buffer is not None and len(recording_buffer) > 0:
-            print(f"[SHUTDOWN] Finalizing active recording of {len(recording_buffer)} frames before exit...")
-            frame_size = (recording_buffer[0].shape[1], recording_buffer[0].shape[0])
-            # Call synchronously so the script does not terminate before saving is complete
-            save_alert_and_process(recording_buffer, fps, frame_size, VIDEO_DIR, recording_violations)
-            
         print("[RUNSCRIPT] Releasing camera resources...")
         cap.release()
         cv2.destroyAllWindows()
+
+        # Check if there is an unfinished recording in progress
+        if recording_buffer is not None and len(recording_buffer) > 0:
+            print(f"[SHUTDOWN] Finalizing active recording of {len(recording_buffer)} frames...")
+            frame_size = (recording_buffer[0].shape[1], recording_buffer[0].shape[0])
+            # Call synchronously so the script does not terminate before saving is complete
+            save_alert_and_process(recording_buffer, fps, frame_size, VIDEO_DIR, recording_violations)
 
 
 if __name__ == "__main__":
