@@ -92,3 +92,6 @@ dataset/
 
 # Ignore runs folder
 runs/
+
+# Ignore personal learning log
+learning.md
