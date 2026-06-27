@@ -23,7 +23,8 @@ def save_alert_and_process(all_frames, fps, frame_size, video_dir, detected_viol
 
     print(f"[THREAD] Saving {len(all_frames)} frames to {filename}...")
     fourcc = cv2.VideoWriter_fourcc(*'avc1')
-    out = cv2.VideoWriter(filepath, fourcc, fps, frame_size)
+    # Use MSMF backend on Windows to write H.264 (avc1) natively and bypass FFMPEG Cisco DLL lookup
+    out = cv2.VideoWriter(filepath, cv2.CAP_MSMF, fourcc, fps, frame_size)
     for frame in all_frames:
         out.write(frame)
     out.release()

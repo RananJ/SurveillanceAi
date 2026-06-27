@@ -30,8 +30,7 @@ flowchart TD
     MainLoop -->|8s Post-roll| AsyncWorker
     
     AsyncWorker -->|Stitch & Save H.264| VideoFile["violations/violation_timestamp.mp4"]
-    
-    VideoFile -->|Read Video Frames| VLM["VLM: SmolVLM2-500M-Instruct"]
+    AsyncWorker -->|Pass Frames Directly in Memory| VLM["VLM: SmolVLM2-500M-Instruct"]
     VLM -->|Generate Summary| TranscriptModel[Transcript DB Model]
     VideoFile -->|Create Alert Entry| AlertModel[Alert DB Model]
     

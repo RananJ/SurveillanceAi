@@ -10,33 +10,38 @@ import traceback
 from transformers import AutoProcessor, AutoModelForMultimodalLM
 from PIL import Image
 
+import threading
+
 _processor = None
 _caption_model = None
 _model_failed = False
+_load_lock = threading.Lock()
 
 def load_vlm():
     global _processor, _caption_model, _model_failed
     if _model_failed:
         return None, None
 
+    # Double-checked locking to prevent race condition between threads
     if _processor is None or _caption_model is None:
-        try:
-            # Swap to the 500M model sitting in your cache
-            caption_model_name = "HuggingFaceTB/SmolVLM2-500M-Instruct"
-            print(f"[Transcript] Lazily loading modern video VLM '{caption_model_name}'...")
-            
-            _processor = AutoProcessor.from_pretrained(caption_model_name)
-            _caption_model = AutoModelForMultimodalLM.from_pretrained(
-                caption_model_name,
-                torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
-            ).to("cuda" if torch.cuda.is_available() else "cpu")
-            
-            print("[Transcript] Video VLM model loaded successfully.")
-        except Exception as e:
-            print(f"[Transcript] FATAL ERROR: Could not load the Video VLM model.")
-            print(f"[Transcript] Details: {e}\n{traceback.format_exc()}")
-            _processor, _caption_model = None, None
-            _model_failed = True
+        with _load_lock:
+            if _processor is None or _caption_model is None:
+                try:
+                    caption_model_name = "HuggingFaceTB/SmolVLM2-500M-Instruct"
+                    print(f"[Transcript] Lazily loading modern video VLM '{caption_model_name}'...")
+                    
+                    _processor = AutoProcessor.from_pretrained(caption_model_name)
+                    _caption_model = AutoModelForMultimodalLM.from_pretrained(
+                        caption_model_name,
+                        torch_dtype=torch.bfloat16 if torch.cuda.is_available() else torch.float32,
+                    ).to("cuda" if torch.cuda.is_available() else "cpu")
+                    
+                    print("[Transcript] Video VLM model loaded successfully.")
+                except Exception as e:
+                    print(f"[Transcript] FATAL ERROR: Could not load the Video VLM model.")
+                    print(f"[Transcript] Details: {e}\n{traceback.format_exc()}")
+                    _processor, _caption_model = None, None
+                    _model_failed = True
 
     return _processor, _caption_model
 
@@ -46,7 +51,6 @@ def preload_vlm_async():
     Spawns a background thread to load the VLM model if it is not already loaded.
     This runs concurrently while the video frames are being buffered.
     """
-    import threading
     global _processor, _caption_model, _model_failed
     if not _model_failed and (_processor is None or _caption_model is None):
         print("[Transcript] Preloading VLM model asynchronously in background thread...")
@@ -75,7 +79,8 @@ def generate_transcript(alert, video_path_or_frames):
             Transcript.objects.create(alert=alert, summary="No frames available in video.")
             return
 
-        num_samples = min(16, frame_count)
+        # Sample 8 frames instead of 16 for 2x faster inference on CPU
+        num_samples = min(8, frame_count)
         for i in range(num_samples):
             frame_index = i * frame_count // num_samples
             frame = raw_frames[frame_index]
@@ -93,8 +98,8 @@ def generate_transcript(alert, video_path_or_frames):
             Transcript.objects.create(alert=alert, summary="No frames available in video.")
             return
 
-        # Keep sampling down to 16-20 frames for the 500M model to optimize processing cost
-        num_samples = min(16, frame_count)
+        # Sample 8 frames instead of 16 for 2x faster inference on CPU
+        num_samples = min(8, frame_count)
         for i in range(num_samples):
             frame_index = i * frame_count // num_samples
             cap.set(cv2.CAP_PROP_POS_FRAMES, frame_index)
@@ -112,14 +117,21 @@ def generate_transcript(alert, video_path_or_frames):
         return
 
     try:
-        # Build a single structural chat prompt asking for a precise chronological description
+        # Ground prompt with the specific violation categories detected by YOLO to improve VLM quality
+        violations_str = alert.violations if alert.violations else "safety violation"
+        prompt_text = (
+            f"This safety surveillance clip recorded a compliance violation: {violations_str}. "
+            "Write a concise, professional safety report describing what the worker is doing, "
+            "what they are wearing (and missing), and the nature of the safety violation. "
+            "Do not write a frame-by-frame list or repeat sentences. Keep it under three sentences."
+        )
+
         messages = [
             {
                 "role": "user",
                 "content": [
-                    # Include the video placeholder token
                     {"type": "video"}, 
-                    {"type": "text", "text": "Describe what happens in this surveillance clip chronologically. Focus heavily on any accidents, safety violations, or unusual events."}
+                    {"type": "text", "text": prompt_text}
                 ]
             }
         ]
