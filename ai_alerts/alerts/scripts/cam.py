@@ -32,7 +32,7 @@ def save_alert_and_process(all_frames, fps, frame_size, video_dir, detected_viol
 
     # 2. Save to database and generate transcript
     from alerts.models import Alert
-    from alerts.transcript import generate_transcript
+    from alerts.scripts.transcript import generate_transcript
     with open(filepath, "rb") as f:
         alert = Alert.objects.create(
             violations=", ".join(detected_violations),
@@ -141,7 +141,7 @@ def run():
                         f"[ALERT] Violations detected. Buffering post-violation frames in main loop...")
 
                     # Preload the VLM in the background while capturing
-                    from alerts.transcript import preload_vlm_async
+                    from alerts.scripts.transcript import preload_vlm_async
                     preload_vlm_async()
 
                     # Initialize recording buffer with pre-roll frames

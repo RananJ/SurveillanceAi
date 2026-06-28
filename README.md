@@ -95,9 +95,9 @@ ai_alerts/
     ├── models.py              # Alert and Transcript Database Schemas
     ├── serializers.py         # DRF Serializers for API communication
     ├── views.py               # Dashboard Views and DRF ViewSets
-    ├── transcript.py          # VLM Integration and Summary generation script
     └── scripts/
-        └── cam.py             # Main multithreaded YOLOv11 video processing script
+        ├── cam.py             # Main multithreaded YOLOv11 video processing script
+        └── transcript.py      # VLM Integration and Summary generation script
 ```
 
 ---

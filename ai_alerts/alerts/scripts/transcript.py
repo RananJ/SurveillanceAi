@@ -3,7 +3,7 @@ import os
 home_dir = os.path.expanduser("~")
 os.environ["HF_HOME"] = os.path.join(home_dir, ".cache", "huggingface")
 
-from .models import Transcript
+from alerts.models import Transcript
 import cv2
 import torch
 import traceback
