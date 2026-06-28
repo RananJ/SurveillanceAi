@@ -21,7 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-tomhhvzkztgvir0h$0wydo@@wzwj!+@2k&8h_p&9^4afs78^b^'
+SECRET_KEY = 'django-insecure-your-secret-key-goes-here'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -91,7 +91,7 @@ DATABASES = {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': 'ai_alerts_db',
         'USER': 'postgres',
-        'PASSWORD': 'Rananjay',   # same one from query
+        'PASSWORD': 'your_postgres_password',
         'HOST': 'localhost',
         'PORT': '5432',
     }
@@ -146,3 +146,4 @@ REST_FRAMEWORK = {
         'rest_framework.renderers.BrowsableAPIRenderer',
     )
 }
+
