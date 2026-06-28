@@ -31,7 +31,7 @@ def load_vlm():
         with _load_lock:
             if _processor is None or _caption_model is None:
                 try:
-                    caption_model_name = "HuggingFaceTB/SmolVLM2-500M-Instruct"
+                    caption_model_name = "HuggingFaceTB/SmolVLM2-500M-Video-Instruct"
                     print(f"[Transcript] Lazily loading modern video VLM '{caption_model_name}'...")
                     
                     _processor = AutoProcessor.from_pretrained(caption_model_name)
