@@ -27,8 +27,8 @@ class AlertSerializer(serializers.ModelSerializer):
         """
         Retrieves the associated transcript summary for this alert.
         """
-        transcript = obj.transcript_set.first()
-        return transcript.summary if transcript else "No summary available."
+        transcripts = obj.transcript_set.all()
+        return transcripts[0].summary if transcripts else "No summary available."
 
 
 

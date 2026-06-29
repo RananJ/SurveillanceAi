@@ -17,7 +17,11 @@ class AlertViewSet(viewsets.ModelViewSet):
     This is now the single source of truth for all API logic.
     It handles creating, listing, retrieving, updating, and deleting alerts.
     """
-    queryset = Alert.objects.all().order_by('-timestamp')
+    queryset = (
+        Alert.objects
+        .prefetch_related("transcript_set")
+        .order_by("-timestamp")
+    )
     serializer_class = AlertSerializer
 
     # Optional: Override the create method to add logging
